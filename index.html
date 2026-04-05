@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Workout Bet</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Tesseract.js for OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+
+<!-- ── LOADING SCREEN ── -->
+<div id="screen-loading" class="screen active">
+  <div class="loader-wrap">
+    <div class="spinner"></div>
+    <p>Loading…</p>
+  </div>
+</div>
+
+<!-- ── AUTH SCREEN ── -->
+<div id="screen-auth" class="screen">
+  <div class="auth-card">
+    <div class="logo">🏋️</div>
+    <h1>Workout Bet</h1>
+    <p class="subtitle">35 workouts. 50 days. Who's in?</p>
+    <div id="auth-form">
+      <input id="auth-email" type="email" placeholder="your@email.com" autocomplete="email" />
+      <button id="auth-btn" class="btn-primary">Send Magic Link</button>
+      <p id="auth-msg" class="msg"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="screen-app" class="screen">
+
+  <!-- Top Nav -->
+  <header class="top-nav">
+    <button id="nav-back" class="icon-btn hidden">&#8592;</button>
+    <span id="nav-title">My Groups</span>
+    <button id="nav-avatar" class="avatar-btn">?</button>
+  </header>
+
+  <!-- Page: Dashboard (group list) -->
+  <div id="page-dashboard" class="page active">
+    <div class="page-body">
+      <div id="group-list" class="group-list"></div>
+      <div class="fab-row">
+        <button id="btn-create-group" class="btn-secondary">+ Create Group</button>
+        <button id="btn-join-group" class="btn-primary">Join Group</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page: Group Detail -->
+  <div id="page-group" class="page">
+    <div class="tabs">
+      <button class="tab active" data-tab="leaderboard">🏆 Board</button>
+      <button class="tab" data-tab="feed">📋 Feed</button>
+      <button class="tab" data-tab="log">➕ Log</button>
+      <button class="tab" data-tab="admin">⚙️ Admin</button>
+    </div>
+    <div class="page-body tab-body">
+
+      <!-- Leaderboard -->
+      <div id="tab-leaderboard" class="tab-content active">
+        <div id="leaderboard-list"></div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div id="tab-feed" class="tab-content">
+        <div id="feed-list"></div>
+      </div>
+
+      <!-- Log Workout -->
+      <div id="tab-log" class="tab-content">
+        <div class="log-form card">
+          <h2>Log a Workout</h2>
+
+          <!-- OCR -->
+          <div class="ocr-section">
+            <label class="ocr-label">📷 Snap to prefill</label>
+            <input id="ocr-input" type="file" accept="image/*" capture="environment" class="hidden" />
+            <button id="ocr-btn" class="btn-secondary btn-sm">Upload Screenshot / Photo</button>
+            <div id="ocr-status" class="ocr-status hidden">
+              <div class="spinner sm"></div> Reading image…
+            </div>
+          </div>
+          <hr />
+
+          <label>Date</label>
+          <input id="log-date" type="date" />
+
+          <label>Workout Type</label>
+          <select id="log-type">
+            <option value="">Select type…</option>
+            <option>Running</option>
+            <option>Cycling</option>
+            <option>Strength Training</option>
+            <option>Tonal</option>
+            <option>Fascia</option>
+            <option>Swimming</option>
+            <option>Yoga</option>
+            <option>HIIT</option>
+            <option>Walking</option>
+            <option>Sports</option>
+            <option>Other</option>
+          </select>
+
+          <label>Duration (minutes)</label>
+          <input id="log-duration" type="number" min="1" max="600" placeholder="e.g. 45" />
+
+          <label>Notes (optional)</label>
+          <textarea id="log-notes" rows="2" placeholder="e.g. morning run in the park"></textarea>
+
+          <button id="log-submit" class="btn-primary">Save Workout</button>
+          <p id="log-msg" class="msg"></p>
+        </div>
+      </div>
+
+      <!-- Admin -->
+      <div id="tab-admin" class="tab-content">
+        <div class="card" id="admin-panel">
+          <h2>Group Settings</h2>
+          <p id="admin-join-code" class="join-code-display"></p>
+          <label>Group Name</label>
+          <input id="admin-name" type="text" />
+          <label>Start Date</label>
+          <input id="admin-start" type="date" />
+          <button id="admin-save" class="btn-primary">Save Changes</button>
+          <hr />
+          <h3>Members</h3>
+          <div id="admin-members"></div>
+          <p id="admin-msg" class="msg"></p>
+        </div>
+        <div id="admin-locked" class="card hidden">
+          <p>Only group admins can access settings.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Page: Profile -->
+  <div id="page-profile" class="page">
+    <div class="page-body card">
+      <h2>Profile</h2>
+      <label>Display Name</label>
+      <input id="profile-name" type="text" placeholder="Your name" />
+      <button id="profile-save" class="btn-primary">Save</button>
+      <button id="profile-logout" class="btn-ghost">Sign Out</button>
+      <p id="profile-msg" class="msg"></p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── MODALS ── -->
+<div id="modal-overlay" class="modal-overlay hidden">
+
+  <!-- Create Group Modal -->
+  <div id="modal-create" class="modal hidden">
+    <h2>Create Group</h2>
+    <label>Group Name</label>
+    <input id="create-name" type="text" placeholder="e.g. Office Hustle" />
+    <label>Start Date</label>
+    <input id="create-start" type="date" />
+    <p class="hint">Challenge: 35 workout days out of 50</p>
+    <div class="modal-actions">
+      <button id="create-cancel" class="btn-ghost">Cancel</button>
+      <button id="create-submit" class="btn-primary">Create</button>
+    </div>
+    <p id="create-msg" class="msg"></p>
+  </div>
+
+  <!-- Join Group Modal -->
+  <div id="modal-join" class="modal hidden">
+    <h2>Join a Group</h2>
+    <label>Enter Join Code</label>
+    <input id="join-code" type="text" placeholder="e.g. ABC123" maxlength="6" style="text-transform:uppercase" />
+    <div class="modal-actions">
+      <button id="join-cancel" class="btn-ghost">Cancel</button>
+      <button id="join-submit" class="btn-primary">Join</button>
+    </div>
+    <p id="join-msg" class="msg"></p>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
