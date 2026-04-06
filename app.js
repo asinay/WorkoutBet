@@ -50,9 +50,25 @@ function msg(id, text, type = '') {
 
 function setNavTitle(t) { $('nav-title').textContent = t; }
 
+function normalizeAllowedWorkoutTypes(value) {
+  if (Array.isArray(value)) {
+    return value.map(v => String(v).trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      return trimmed.slice(1, -1).split(',').map(v => v.replace(/^"|"$/g, '').trim()).filter(Boolean);
+    }
+    return trimmed.split(/\r?\n|,/).map(v => v.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
 function getAllowedWorkoutTypes(group = currentGroup) {
-  const allowed = group?.allowed_workout_types;
-  return Array.isArray(allowed) && allowed.length ? allowed : DEFAULT_WORKOUT_TYPE_OPTIONS;
+  const allowed = normalizeAllowedWorkoutTypes(group?.allowed_workout_types);
+  return allowed.length ? allowed : DEFAULT_WORKOUT_TYPE_OPTIONS;
 }
 
 function renderWorkoutTypeOptions(group = currentGroup) {
@@ -166,12 +182,17 @@ async function showDashboard() {
 
 // ── Group Detail ───────────────────────────────────────────
 async function openGroup(group, role) {
-  currentGroup = group;
+  const { data: freshGroup } = await sb.from('groups')
+    .select('*')
+    .eq('id', group.id)
+    .maybeSingle();
+
+  currentGroup = freshGroup || group;
   currentGroupRole = role;
   setPage('group');
-  setNavTitle(group.name);
+  setNavTitle(currentGroup.name);
   show('nav-back');
-  renderWorkoutTypeOptions(group);
+  renderWorkoutTypeOptions(currentGroup);
 
   // Set default tab
   activateTab('leaderboard');
