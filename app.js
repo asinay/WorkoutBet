@@ -13,6 +13,19 @@ let currentUser = null;
 let currentProfile = null;
 let currentGroup  = null;
 let currentGroupRole = null;
+const DEFAULT_WORKOUT_TYPE_OPTIONS = [
+  'Running',
+  'Cycling',
+  'Strength Training',
+  'Tonal',
+  'Fascia',
+  'Swimming',
+  'Yoga',
+  'HIIT',
+  'Walking',
+  'Sports',
+  'Other'
+];
 
 // ── DOM helpers ────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -36,6 +49,23 @@ function msg(id, text, type = '') {
 }
 
 function setNavTitle(t) { $('nav-title').textContent = t; }
+
+function getAllowedWorkoutTypes(group = currentGroup) {
+  const allowed = group?.allowed_workout_types;
+  return Array.isArray(allowed) && allowed.length ? allowed : DEFAULT_WORKOUT_TYPE_OPTIONS;
+}
+
+function renderWorkoutTypeOptions(group = currentGroup) {
+  const select = $('log-type');
+  const previousValue = select.value;
+  const allowedTypes = getAllowedWorkoutTypes(group);
+  select.innerHTML = '<option value="">Select type...</option>' +
+    allowedTypes.map(type => `<option>${type}</option>`).join('');
+
+  if (allowedTypes.includes(previousValue)) {
+    select.value = previousValue;
+  }
+}
 
 // ── Auth ───────────────────────────────────────────────────
 $('auth-btn').addEventListener('click', async () => {
@@ -141,6 +171,7 @@ async function openGroup(group, role) {
   setPage('group');
   setNavTitle(group.name);
   show('nav-back');
+  renderWorkoutTypeOptions(group);
 
   // Set default tab
   activateTab('leaderboard');
@@ -219,6 +250,7 @@ async function loadFeed() {
 function initLogForm() {
   $('log-date').value = new Date().toISOString().split('T')[0];
   $('log-duration').value = '';
+  renderWorkoutTypeOptions();
   $('log-type').value = '';
   $('log-notes').value = '';
   msg('log-msg', '');
@@ -229,8 +261,12 @@ $('log-submit').addEventListener('click', async () => {
   const type = $('log-type').value;
   const dur  = parseInt($('log-duration').value);
   const notes = $('log-notes').value.trim();
+  const minDuration = currentGroup?.minimum_duration_minutes || 1;
+  const allowedTypes = getAllowedWorkoutTypes();
 
   if (!date || !type || !dur) return msg('log-msg', 'Fill in date, type, and duration.', 'error');
+  if (dur < minDuration) return msg('log-msg', `Workout must be at least ${minDuration} minutes.`, 'error');
+  if (!allowedTypes.includes(type)) return msg('log-msg', 'Choose one of the allowed workout types for this group.', 'error');
 
   $('log-submit').disabled = true;
   const { error } = await sb.from('workout_logs').upsert({
@@ -549,6 +585,10 @@ async function loadAdmin() {
   $('admin-join-code').textContent = currentGroup.join_code;
   $('admin-name').value = currentGroup.name;
   $('admin-start').value = currentGroup.start_date;
+  $('admin-goal-days').value = currentGroup.goal_days;
+  $('admin-total-days').value = currentGroup.total_days;
+  $('admin-min-duration').value = currentGroup.minimum_duration_minutes || 20;
+  $('admin-workout-types').value = getAllowedWorkoutTypes().join('\n');
 
   // Load members
   const { data: members } = await sb.from('group_members')
@@ -576,14 +616,41 @@ async function loadAdmin() {
 $('admin-save').addEventListener('click', async () => {
   const name = $('admin-name').value.trim();
   const start = $('admin-start').value;
+  const goalDays = parseInt($('admin-goal-days').value, 10);
+  const totalDays = parseInt($('admin-total-days').value, 10);
+  const minDuration = parseInt($('admin-min-duration').value, 10);
+  const workoutTypes = $('admin-workout-types').value
+    .split(/\r?\n/)
+    .map(value => value.trim())
+    .filter(Boolean);
+
   if (!name || !start) return msg('admin-msg', 'Name and start date required.', 'error');
+  if (!goalDays || !totalDays || !minDuration) return msg('admin-msg', 'Goal days, challenge length, and minimum duration are required.', 'error');
+  if (goalDays > totalDays) return msg('admin-msg', 'Goal workout days cannot exceed challenge length.', 'error');
+  if (!workoutTypes.length) return msg('admin-msg', 'Add at least one allowed workout type.', 'error');
 
   const { error } = await sb.from('groups')
-    .update({ name, start_date: start }).eq('id', currentGroup.id);
+    .update({
+      name,
+      start_date: start,
+      goal_days: goalDays,
+      total_days: totalDays,
+      minimum_duration_minutes: minDuration,
+      allowed_workout_types: workoutTypes
+    }).eq('id', currentGroup.id);
   if (error) msg('admin-msg', error.message, 'error');
   else {
-    currentGroup = { ...currentGroup, name, start_date: start };
+    currentGroup = {
+      ...currentGroup,
+      name,
+      start_date: start,
+      goal_days: goalDays,
+      total_days: totalDays,
+      minimum_duration_minutes: minDuration,
+      allowed_workout_types: workoutTypes
+    };
     setNavTitle(name);
+    renderWorkoutTypeOptions();
     msg('admin-msg', '✅ Saved!', 'success');
   }
 });

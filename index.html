@@ -96,17 +96,6 @@
           <label>Workout Type</label>
           <select id="log-type">
             <option value="">Select type…</option>
-            <option>Running</option>
-            <option>Cycling</option>
-            <option>Strength Training</option>
-            <option>Tonal</option>
-            <option>Fascia</option>
-            <option>Swimming</option>
-            <option>Yoga</option>
-            <option>HIIT</option>
-            <option>Walking</option>
-            <option>Sports</option>
-            <option>Other</option>
           </select>
 
           <label>Duration (minutes)</label>
@@ -129,6 +118,15 @@
           <input id="admin-name" type="text" />
           <label>Start Date</label>
           <input id="admin-start" type="date" />
+          <label>Goal Workout Days</label>
+          <input id="admin-goal-days" type="number" min="1" max="365" />
+          <label>Challenge Length (days)</label>
+          <input id="admin-total-days" type="number" min="1" max="365" />
+          <label>Minimum Duration (minutes)</label>
+          <input id="admin-min-duration" type="number" min="1" max="600" />
+          <label>Allowed Workout Types</label>
+          <textarea id="admin-workout-types" rows="6" placeholder="One workout type per line"></textarea>
+          <p class="hint">These options will appear in the Log tab for everyone in the group.</p>
           <button id="admin-save" class="btn-primary">Save Changes</button>
           <hr />
           <h3>Members</h3>

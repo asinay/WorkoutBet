@@ -28,6 +28,20 @@ create table if not exists public.groups (
   start_date date not null,
   goal_days int not null default 35,
   total_days int not null default 50,
+  minimum_duration_minutes int not null default 20,
+  allowed_workout_types text[] not null default array[
+    'Running',
+    'Cycling',
+    'Strength Training',
+    'Tonal',
+    'Fascia',
+    'Swimming',
+    'Yoga',
+    'HIIT',
+    'Walking',
+    'Sports',
+    'Other'
+  ]::text[],
   created_by uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
@@ -55,6 +69,40 @@ create table if not exists public.workout_logs (
   unique(group_id, user_id, logged_date)
 );
 
+create or replace function public.validate_workout_log()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_group public.groups;
+begin
+  select *
+  into v_group
+  from public.groups
+  where id = new.group_id;
+
+  if not found then
+    raise exception 'Group not found';
+  end if;
+
+  if new.duration_minutes < v_group.minimum_duration_minutes then
+    raise exception 'Workout must be at least % minutes for this group', v_group.minimum_duration_minutes;
+  end if;
+
+  if not (new.workout_type = any(v_group.allowed_workout_types)) then
+    raise exception 'Workout type "%" is not allowed for this group', new.workout_type;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_workout_log_trigger on public.workout_logs;
+create trigger validate_workout_log_trigger
+  before insert or update on public.workout_logs
+  for each row execute procedure public.validate_workout_log();
+
 -- Align existing foreign keys with auth.users for user-owned records.
 alter table public.groups
   drop constraint if exists groups_created_by_fkey;
@@ -73,6 +121,51 @@ alter table public.workout_logs
 alter table public.workout_logs
   add constraint workout_logs_user_id_fkey
   foreign key (user_id) references auth.users(id) on delete cascade;
+
+alter table public.groups
+  add column if not exists minimum_duration_minutes int;
+alter table public.groups
+  add column if not exists allowed_workout_types text[];
+
+update public.groups
+set minimum_duration_minutes = coalesce(minimum_duration_minutes, 20),
+    allowed_workout_types = coalesce(
+      allowed_workout_types,
+      array[
+        'Running',
+        'Cycling',
+        'Strength Training',
+        'Tonal',
+        'Fascia',
+        'Swimming',
+        'Yoga',
+        'HIIT',
+        'Walking',
+        'Sports',
+        'Other'
+      ]::text[]
+    );
+
+alter table public.groups
+  alter column minimum_duration_minutes set default 20;
+alter table public.groups
+  alter column minimum_duration_minutes set not null;
+alter table public.groups
+  alter column allowed_workout_types set default array[
+    'Running',
+    'Cycling',
+    'Strength Training',
+    'Tonal',
+    'Fascia',
+    'Swimming',
+    'Yoga',
+    'HIIT',
+    'Walking',
+    'Sports',
+    'Other'
+  ]::text[];
+alter table public.groups
+  alter column allowed_workout_types set not null;
 
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
