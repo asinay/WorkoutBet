@@ -50,6 +50,22 @@ function msg(id, text, type = '') {
 
 function setNavTitle(t) { $('nav-title').textContent = t; }
 
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function formatDate(value, options = { month: 'short', day: 'numeric', year: 'numeric' }) {
+  if (!value) return '';
+  const date = new Date(String(value).includes('T') ? value : `${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-US', options);
+}
+
 function normalizeAllowedWorkoutTypes(value) {
   if (Array.isArray(value)) {
     return value.map(v => String(v).trim()).filter(Boolean);
@@ -76,7 +92,7 @@ function renderWorkoutTypeOptions(group = currentGroup) {
   const previousValue = select.value;
   const allowedTypes = getAllowedWorkoutTypes(group);
   select.innerHTML = '<option value="">Select type...</option>' +
-    allowedTypes.map(type => `<option>${type}</option>`).join('');
+    allowedTypes.map(type => `<option>${escapeHTML(type)}</option>`).join('');
 
   if (allowedTypes.includes(previousValue)) {
     select.value = previousValue;
@@ -242,7 +258,8 @@ async function loadLeaderboard() {
 }
 
 // ── Feed ───────────────────────────────────────────────────
-async function loadFeed() {
+// Kept unused for reference; the tab now uses loadFeed below for editable history.
+async function loadActivityFeed() {
   const { data } = await sb.from('workout_logs')
     .select('*, profiles(display_name)')
     .eq('group_id', currentGroup.id)
@@ -268,6 +285,135 @@ async function loadFeed() {
 }
 
 // ── Log Workout ────────────────────────────────────────────
+// Group log history.
+async function loadFeed() {
+  msg('feed-msg', '');
+
+  const { data, error } = await sb.from('workout_logs')
+    .select('*, profiles(display_name)')
+    .eq('group_id', currentGroup.id)
+    .order('logged_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  const el = $('feed-list');
+  if (error) {
+    el.innerHTML = '<p class="empty">Could not load log history.</p>';
+    msg('feed-msg', error.message, 'error');
+    return;
+  }
+  if (!data?.length) { el.innerHTML = '<p class="empty">No workouts logged yet.</p>'; return; }
+
+  el.innerHTML = data.map(renderFeedLog).join('');
+
+  el.querySelectorAll('.feed-edit').forEach(btn => {
+    btn.addEventListener('click', () => editFeedLog(btn.dataset.id, data));
+  });
+
+  el.querySelectorAll('.feed-delete').forEach(btn => {
+    btn.addEventListener('click', () => deleteFeedLog(btn.dataset.id));
+  });
+}
+
+function renderFeedLog(log) {
+  const name = log.profiles?.display_name || 'Someone';
+  const canManage = canManageLog(log);
+  const ownerLabel = log.user_id === currentUser.id ? '<span class="feed-pill">You</span>' : '';
+
+  return `
+    <div class="feed-item" data-log-id="${escapeHTML(log.id)}">
+      <div class="feed-avatar">${escapeHTML(name[0]?.toUpperCase() || '?')}</div>
+      <div class="feed-text">
+        <div class="feed-name">${escapeHTML(name)} ${ownerLabel}</div>
+        <div class="feed-detail">
+          <strong>${escapeHTML(log.workout_type)}</strong> &middot; ${escapeHTML(log.duration_minutes)} min &middot; ${escapeHTML(formatDate(log.logged_date))}
+        </div>
+        ${log.notes ? `<div class="feed-notes">${escapeHTML(log.notes)}</div>` : ''}
+        <div class="feed-created">Added ${escapeHTML(formatDate(log.created_at, { month: 'short', day: 'numeric' }))}</div>
+        ${canManage ? `
+          <div class="feed-actions">
+            <button class="feed-action feed-edit" data-id="${escapeHTML(log.id)}">Edit</button>
+            <button class="feed-action danger feed-delete" data-id="${escapeHTML(log.id)}">Remove</button>
+          </div>` : ''}
+      </div>
+    </div>`;
+}
+
+function canManageLog(log) {
+  return log.user_id === currentUser.id || currentGroupRole === 'admin';
+}
+
+function editFeedLog(id, logs) {
+  const log = logs.find(item => item.id === id);
+  if (!log || !canManageLog(log)) return;
+
+  const row = Array.from(document.querySelectorAll('.feed-item'))
+    .find(item => item.dataset.logId === id);
+  if (!row) return;
+
+  const allowedTypes = getAllowedWorkoutTypes();
+  row.innerHTML = `
+    <div class="feed-edit-form">
+      <label>Date</label>
+      <input class="feed-edit-date" type="date" value="${escapeHTML(log.logged_date)}" />
+      <label>Workout Type</label>
+      <select class="feed-edit-type">
+        ${allowedTypes.map(type => `<option value="${escapeHTML(type)}"${type === log.workout_type ? ' selected' : ''}>${escapeHTML(type)}</option>`).join('')}
+      </select>
+      <label>Duration (minutes)</label>
+      <input class="feed-edit-duration" type="number" min="1" max="600" value="${escapeHTML(log.duration_minutes)}" />
+      <label>Notes (optional)</label>
+      <textarea class="feed-edit-notes" rows="2">${escapeHTML(log.notes || '')}</textarea>
+      <div class="feed-actions">
+        <button class="feed-action save">Save</button>
+        <button class="feed-action cancel">Cancel</button>
+      </div>
+    </div>`;
+
+  row.querySelector('.save').addEventListener('click', () => saveFeedLog(id, row));
+  row.querySelector('.cancel').addEventListener('click', loadFeed);
+}
+
+async function saveFeedLog(id, row) {
+  const loggedDate = row.querySelector('.feed-edit-date').value;
+  const workoutType = row.querySelector('.feed-edit-type').value;
+  const duration = parseInt(row.querySelector('.feed-edit-duration').value, 10);
+  const notes = row.querySelector('.feed-edit-notes').value.trim();
+  const minDuration = currentGroup?.minimum_duration_minutes || 1;
+
+  if (!loggedDate || !workoutType || !duration) return msg('feed-msg', 'Fill in date, type, and duration.', 'error');
+  if (duration < minDuration) return msg('feed-msg', `Workout must be at least ${minDuration} minutes.`, 'error');
+
+  const { error } = await sb.from('workout_logs')
+    .update({
+      logged_date: loggedDate,
+      workout_type: workoutType,
+      duration_minutes: duration,
+      notes: notes || null
+    })
+    .eq('id', id)
+    .eq('group_id', currentGroup.id);
+
+  if (error) return msg('feed-msg', error.message, 'error');
+
+  await loadFeed();
+  msg('feed-msg', 'Workout updated.', 'success');
+}
+
+async function deleteFeedLog(id) {
+  if (!confirm('Remove this workout log?')) return;
+
+  const { error } = await sb.from('workout_logs')
+    .delete()
+    .eq('id', id)
+    .eq('group_id', currentGroup.id);
+
+  if (error) return msg('feed-msg', error.message, 'error');
+
+  await loadFeed();
+  msg('feed-msg', 'Workout removed.', 'success');
+}
+
 function initLogForm() {
   $('log-date').value = new Date().toISOString().split('T')[0];
   $('log-duration').value = '';

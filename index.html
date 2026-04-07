@@ -58,7 +58,7 @@
   <div id="page-group" class="page">
     <div class="tabs">
       <button class="tab active" data-tab="leaderboard">🏆 Board</button>
-      <button class="tab" data-tab="feed">📋 Feed</button>
+      <button class="tab" data-tab="feed">📋 History</button>
       <button class="tab" data-tab="log">➕ Log</button>
       <button class="tab" data-tab="admin">⚙️ Admin</button>
     </div>
@@ -71,7 +71,12 @@
 
       <!-- Activity Feed -->
       <div id="tab-feed" class="tab-content">
+        <div class="card feed-intro">
+          <h2>Group Log History</h2>
+          <p class="hint">Review everyone&apos;s workouts. You can edit or remove your own logs; admins can manage any log.</p>
+        </div>
         <div id="feed-list"></div>
+        <p id="feed-msg" class="msg"></p>
       </div>
 
       <!-- Log Workout -->

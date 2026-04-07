@@ -114,6 +114,11 @@ vercel
 - **🏆 Board** tab shows all members ranked by workout days logged
 - ✅ appears when a member hits 35 days
 
+### Log History
+- **📋 History** tab shows the group's recent workout logs
+- Members can edit/remove their own logs
+- Admins can edit/remove any log
+
 ### Admin Settings
 - Only the group creator (admin) sees **⚙️ Admin**
 - Change group name, start date, remove members

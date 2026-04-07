@@ -406,11 +406,21 @@ create policy "logs_insert" on public.workout_logs
 
 drop policy if exists "logs_update" on public.workout_logs;
 create policy "logs_update" on public.workout_logs
-  for update using (auth.uid() = user_id);
+  for update using (
+    auth.uid() = user_id or
+    private.is_group_admin(group_id, auth.uid())
+  )
+  with check (
+    auth.uid() = user_id or
+    private.is_group_admin(group_id, auth.uid())
+  );
 
 drop policy if exists "logs_delete" on public.workout_logs;
 create policy "logs_delete" on public.workout_logs
-  for delete using (auth.uid() = user_id);
+  for delete using (
+    auth.uid() = user_id or
+    private.is_group_admin(group_id, auth.uid())
+  );
 
 -- Indexes
 create index if not exists idx_group_members_user  on public.group_members(user_id);
