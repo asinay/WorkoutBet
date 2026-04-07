@@ -261,7 +261,7 @@ async function loadLeaderboard() {
 // Kept unused for reference; the tab now uses loadFeed below for editable history.
 async function loadActivityFeed() {
   const { data } = await sb.from('workout_logs')
-    .select('*, profiles(display_name)')
+    .select('*')
     .eq('group_id', currentGroup.id)
     .order('created_at', { ascending: false })
     .limit(40);
@@ -289,8 +289,8 @@ async function loadActivityFeed() {
 async function loadFeed() {
   msg('feed-msg', '');
 
-  const { data, error } = await sb.from('workout_logs')
-    .select('*, profiles(display_name)')
+  const { data: logs, error } = await sb.from('workout_logs')
+    .select('*')
     .eq('group_id', currentGroup.id)
     .order('logged_date', { ascending: false })
     .order('created_at', { ascending: false })
@@ -302,7 +302,22 @@ async function loadFeed() {
     msg('feed-msg', error.message, 'error');
     return;
   }
-  if (!data?.length) { el.innerHTML = '<p class="empty">No workouts logged yet.</p>'; return; }
+  if (!logs?.length) { el.innerHTML = '<p class="empty">No workouts logged yet.</p>'; return; }
+
+  const userIds = [...new Set(logs.map(log => log.user_id).filter(Boolean))];
+  const { data: profiles, error: profilesError } = await sb.from('profiles')
+    .select('id, display_name')
+    .in('id', userIds);
+
+  if (profilesError) {
+    msg('feed-msg', profilesError.message, 'error');
+  }
+
+  const profilesById = new Map((profiles || []).map(profile => [profile.id, profile]));
+  const data = logs.map(log => ({
+    ...log,
+    profiles: profilesById.get(log.user_id) || null
+  }));
 
   el.innerHTML = data.map(renderFeedLog).join('');
 
@@ -759,15 +774,21 @@ async function loadAdmin() {
 
   // Load members
   const { data: members } = await sb.from('group_members')
-    .select('*, profiles(display_name)')
+    .select('*')
     .eq('group_id', currentGroup.id);
 
-  $('admin-members').innerHTML = members.map(m => `
+  const memberUserIds = [...new Set((members || []).map(member => member.user_id).filter(Boolean))];
+  const { data: memberProfiles } = memberUserIds.length
+    ? await sb.from('profiles').select('id, display_name').in('id', memberUserIds)
+    : { data: [] };
+  const memberProfilesById = new Map((memberProfiles || []).map(profile => [profile.id, profile]));
+
+  $('admin-members').innerHTML = (members || []).map(m => `
     <div class="member-row">
-      <span class="member-name">${m.profiles?.display_name || '?'}</span>
-      <span class="member-role">${m.role}</span>
+      <span class="member-name">${escapeHTML(memberProfilesById.get(m.user_id)?.display_name || '?')}</span>
+      <span class="member-role">${escapeHTML(m.role)}</span>
       ${m.user_id !== currentUser.id
-        ? `<button class="btn-kick" data-id="${m.user_id}">Remove</button>` : ''}
+        ? `<button class="btn-kick" data-id="${escapeHTML(m.user_id)}">Remove</button>` : ''}
     </div>`).join('');
 
   $('admin-members').querySelectorAll('.btn-kick').forEach(btn => {
