@@ -17,7 +17,7 @@
 ## 2. Run SQL Migrations
 
 1. In Supabase Dashboard → **SQL Editor**
-2. Paste the full contents of `supabase_migrations.sql`
+2. Paste the full contents of `sql_migrations.sql`
 3. Click **Run**
 4. Verify tables appear under **Table Editor**: `profiles`, `groups`, `group_members`, `workout_logs`
 
@@ -109,13 +109,16 @@ vercel
 1. Open a group → **➕ Log** tab
 2. Optional: tap **Upload Screenshot / Photo** to OCR-prefill from a fitness app screenshot
 3. Verify/fill date, type, duration → **Save Workout**
+4. After a successful save, the app returns to **🏆 Board** and shows a visible confirmation message
 
 ### Leaderboard
 - **🏆 Board** tab shows all members ranked by workout days logged
 - ✅ appears when a member hits 35 days
+- Inline success/error messages appear as bordered status panels so they are easier to notice
 
 ### Log History
 - **📋 History** tab shows the group's recent workout logs
+- History is sorted by workout date, newest first
 - Members can edit/remove their own logs
 - Admins can edit/remove any log
 
@@ -183,8 +186,8 @@ Notes:
 ├── index.html              # Single-page app shell
 ├── styles.css              # Dark mobile-first styles
 ├── app.js                  # All client logic
-├── supabase_migrations.sql # Database schema + RLS
-└── SETUP.md                # This file
+├── sql_migrations.sql      # Database schema + RLS
+└── setup_docs.md           # This file
 ```
 
 ---
@@ -194,5 +197,6 @@ Notes:
 - All data access is enforced server-side via **Row Level Security (RLS)**
 - Users can only read/write data for groups they belong to
 - Only admins can update group settings or remove members
+- Users can edit/remove their own workout logs; admins can edit/remove any workout log in their group
 - The anon key is safe to expose client-side — Supabase RLS is the security layer
 - Never commit a service role key to client-side code

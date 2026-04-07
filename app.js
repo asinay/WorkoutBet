@@ -46,6 +46,9 @@ function msg(id, text, type = '') {
   const el = $(id);
   el.textContent = text;
   el.className = 'msg ' + type;
+  if (text) {
+    setTimeout(() => el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
+  }
 }
 
 function setNavTitle(t) { $('nav-title').textContent = t; }
@@ -234,6 +237,8 @@ function activateTab(name) {
 
 // ── Leaderboard ────────────────────────────────────────────
 async function loadLeaderboard() {
+  msg('leaderboard-msg', '');
+
   const { data } = await sb.from('leaderboard')
     .select('*').eq('group_id', currentGroup.id)
     .order('days_logged', { ascending: false });
@@ -462,7 +467,16 @@ $('log-submit').addEventListener('click', async () => {
   $('log-submit').disabled = false;
 
   if (error) msg('log-msg', error.message, 'error');
-  else { msg('log-msg', '✅ Workout logged!', 'success'); }
+  else {
+    $('log-date').value = new Date().toISOString().split('T')[0];
+    $('log-duration').value = '';
+    $('log-type').value = '';
+    $('log-notes').value = '';
+    msg('log-msg', '');
+    activateTab('leaderboard');
+    await loadLeaderboard();
+    msg('leaderboard-msg', 'Workout saved. Leaderboard updated.', 'success');
+  }
 });
 
 // ── OCR ────────────────────────────────────────────────────

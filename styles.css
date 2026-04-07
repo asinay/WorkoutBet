@@ -261,9 +261,13 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Utility ── */
 .hidden { display: none !important; }
-.msg { font-size: .82rem; min-height: 1.2em; margin-top: 4px; }
-.msg.success { color: var(--success); }
-.msg.error { color: var(--danger); }
+.msg { display: none; font-size: .86rem; line-height: 1.35; margin-top: 4px; }
+.msg:not(:empty) {
+  display: block; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.msg.success { color: var(--success); border-color: rgba(61, 214, 140, .45); background: rgba(61, 214, 140, .1); }
+.msg.error { color: #ffb4b4; border-color: rgba(224, 92, 92, .55); background: rgba(224, 92, 92, .12); }
 .hint { font-size: .78rem; color: var(--text2); }
 .empty { text-align: center; color: var(--text2); padding: 32px 16px; font-size: .9rem; }
 
